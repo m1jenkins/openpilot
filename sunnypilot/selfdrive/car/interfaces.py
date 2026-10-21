@@ -92,11 +92,21 @@ def _cleanup_unsupported_params(CP: structs.CarParams, CP_SP: structs.CarParamsS
   set_speed_limit_assist_availability(CP, CP_SP, params)
 
 
+def _initialize_madmax_tune(CP: structs.CarParams) -> None:
+  # Mad Max fork: a broken tune.py must never stop the car from starting, fall back to stock values instead
+  try:
+    from openpilot.sunnypilot.madmax.apply import apply_madmax_tune
+    apply_madmax_tune(CP)
+  except Exception:
+    cloudlog.exception("madmax: failed to apply tune, using stock sunnypilot values")
+
+
 def setup_interfaces(CI: CarInterfaceBase, params: Params = None) -> None:
   enforce_torque = _enforce_torque_lateral_control(CI.CP, params)
   nnlc_enabled = _initialize_neural_network_lateral_control(CI.CP, CI.CP_SP, params)
   _initialize_intelligent_cruise_button_management(CI.CP, CI.CP_SP, params)
   _initialize_torque_lateral_control(CI, CI.CP, enforce_torque, nnlc_enabled)
+  _initialize_madmax_tune(CI.CP)
   _cleanup_unsupported_params(CI.CP, CI.CP_SP)
 
   try:
