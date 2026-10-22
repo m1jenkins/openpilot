@@ -126,6 +126,15 @@ class Car:
     set_alternative_experience(self.CP, self.CP_SP, self.params)
     set_car_specific_params(self.CP, self.CP_SP, self.params)
 
+    # Mad Max fork: manual gear readout, off unless the car sent 0x1DD while fingerprinting.
+    # A broken readout must never stop card, so it just stays off
+    self.madmax_gear = None
+    try:
+      from openpilot.sunnypilot.madmax.gear import create_gear_reader
+      self.madmax_gear = create_gear_reader(self.CP, self.CP_SP)
+    except Exception:
+      cloudlog.exception("madmax: gear readout unavailable")
+
     # Dynamic Experimental Control
     self.dynamic_experimental_control = self.params.get_bool("DynamicExperimentalControl")
 
@@ -196,6 +205,8 @@ class Car:
 
     # Update carState from CAN
     CS, CS_SP = self.CI.update(can_list)
+    if self.madmax_gear is not None:
+      CS_SP.madmaxGearMT = self.madmax_gear.update(can_list)
     CS_SP = convert_to_capnp(CS_SP)
 
     # Update radar tracks from CAN

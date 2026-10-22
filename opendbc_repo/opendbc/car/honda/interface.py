@@ -265,6 +265,10 @@ class CarInterface(CarInterfaceBase):
       if 0x223 in fingerprint[CAN.pt]:
         ret.flags |= HondaFlagsSP.HYBRID_ALT_BRAKEHOLD.value
 
+    # Mad Max fork: manual Civics send their gear position, read by sunnypilot/madmax/gear.py
+    if stock_cp.transmissionType == TransmissionType.manual and candidate in HONDA_BOSCH_RADARLESS and 0x1DD in fingerprint[CAN.pt]:
+      ret.flags |= HondaFlagsSP.MADMAX_GEARBOX_MT.value
+
     if candidate == CAR.HONDA_CIVIC:
       if ret.flags & HondaFlagsSP.EPS_MODIFIED:
         # stock request input values:     0x0000, 0x00DE, 0x014D, 0x01EF, 0x0290, 0x0377, 0x0454, 0x0610, 0x06EE

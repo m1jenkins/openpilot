@@ -170,3 +170,4 @@ class CarControlSP:
 @auto_dataclass
 class CarStateSP:
   speedLimit: float = auto_field()
+  madmaxGearMT: int = -1  # Mad Max fork, see sunnypilot/madmax/gear.py

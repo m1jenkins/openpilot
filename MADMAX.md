@@ -11,18 +11,20 @@ A personal fork of [sunnypilot](https://github.com/sunnypilot/sunnypilot) for tw
 
 ## What's different from stock sunnypilot
 
-The fork adds one thing: [`sunnypilot/madmax/tune.py`](sunnypilot/madmax/tune.py), a single file of steering-gain profiles (`stock`, `sport`, `madmax`). It ships set to `sport`.
+The fork adds two things. The main one is [`sunnypilot/madmax/tune.py`](sunnypilot/madmax/tune.py), a single file of steering-gain profiles (`stock`, `sport`, `madmax`). It ships set to `sport`.
 
 - The profiles scale the PID steering gains sunnypilot already uses for the Civic: **kp** (correction), **ki** (holding a long corner) and **kf** (turn-in feedforward). Each value is clamped to 0.5–1.5× stock.
 - The tune only applies to `HONDA_CIVIC_2022`, and only when the PID controller is active. If you turn on NNLC or Torque control, the tune is skipped.
 - If `tune.py` has a mistake, the car still starts on stock sunnypilot values and the device log records a `madmax:` line.
+
+The second is a [gear readout](#gear-readout). sunnypilot records which gear you're in and when the clutch is down. It's for logs only and doesn't change how the car drives.
 
 Nothing else changes. The panda safety firmware, steering torque and rate limits, the lateral-acceleration cap, driver monitoring and the car's AEB/ACC behave exactly as in stock sunnypilot.
 
 ## Reality check for twisty roads
 
 - **Steering authority is capped.** openpilot limits commanded cornering to about 3 m/s² (≈0.3 g). sunnypilot's data for this car says full EPS torque is worth about 2.5 m/s². Spirited cornering goes well past both, so in a tight or fast corner sunnypilot will run wide, show "Turn Exceeds Steering Limit", and you steer. Tuning changes how crisp it feels *inside* that envelope. It can't make it a canyon carver, and this fork does not raise those limits.
-- **The manual means you drive the pedals.** sunnypilot can't see the clutch. Speed control is Honda's own ACC (`pcmCruise`), so the clutch and ACC behave as they do stock. Leave **developer → alpha longitudinal** off on this car. The device's own warning says it may disable AEB, it takes over the camera's ACC messages, and it's untested with a clutch.
+- **The manual means you drive the pedals.** Stock sunnypilot can't see the clutch. The Mad Max gear readout records it, but nothing acts on it. Speed control is Honda's own ACC (`pcmCruise`), so the clutch and ACC behave as they do stock. Leave **developer → alpha longitudinal** off on this car. The device's own warning says it may disable AEB, it takes over the camera's ACC messages, and it's untested with a clutch.
 - The best combination for back roads is **MADS** (on by default). Steering assist runs on its own, toggled with the LKAS button, while you handle the throttle, clutch and shifting.
 
 ## Install on the comma four
@@ -91,6 +93,34 @@ Params survive updates. Most take effect on the next drive; the real-time torque
 
 If you want these in a file instead, `tune.py` can grow a section that sets them at startup. Ask for it.
 
+## Gear readout
+
+The Civic's CAN definitions already decode a gear message, `GEARBOX_ALT_2` (0x1DD), but stock sunnypilot never reads it. Mad Max reads it into `carStateSP.madmaxGearMT`, which is saved with every drive. The code is in [`sunnypilot/madmax/gear.py`](sunnypilot/madmax/gear.py).
+
+| Value | Meaning |
+|---|---|
+| `-1` | Unavailable. The car didn't send 0x1DD at startup, or it stopped for more than a second |
+| `0` | Clutch |
+| `1`–`6` | Gear |
+| `14` | Reverse |
+| anything else | Undocumented. Neutral may show up as one of these, so note what you see |
+
+It's a readout only. Steering, ACC, alerts and `carState.gearShifter` behave exactly as before. It also can't cause a CAN error:
+
+- It only turns on if the car sent 0x1DD while sunnypilot identified it at startup. Otherwise it stays off for that drive.
+- It has its own CAN parser with no missing-message or counter checks, and nothing checks that parser's health.
+- If it hits an error, it turns itself off for the rest of the drive and writes a `madmax:` line to the device log.
+
+**Check it on your car.** Nobody has confirmed 0x1DD on a 2024 Si yet.
+
+- Without SSH: open a drive in comma connect's cabana, find message `1DD` (`GEARBOX_ALT_2`), and watch `GEAR_MT` as you shift. Cabana needs that drive's full logs uploaded.
+- With SSH, car on:
+  ```bash
+  cd /data/openpilot
+  python3 selfdrive/debug/dump.py carStateSP --values carStateSP.madmaxGearMT
+  ```
+  It prints 100 times a second, so press Ctrl+C to stop. A constant `-1` means the readout is off.
+
 ## Keeping up with sunnypilot releases
 
 ```bash
@@ -98,6 +128,8 @@ powershell -ExecutionPolicy Bypass -File sunnypilot\madmax\sync_upstream.ps1
 ```
 
 This fetches the latest `release-mici` and replays your commits on top. It stops if there are conflicts, and it never pushes. Afterwards run `git push --force-with-lease origin madmax` and `git push --force origin madmax-base`. The force push is normal for release-based forks, and the device updater handles it.
+
+The gear readout adds field `@1` to `CarStateSP` in `cereal/custom.capnp`. If a sunnypilot release adds its own field there, the sync stops on a conflict in that file. Keep sunnypilot's field and give `madmaxGearMT` the next free number.
 
 ## Repo notes
 
