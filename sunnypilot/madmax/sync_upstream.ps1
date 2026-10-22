@@ -8,7 +8,7 @@ rebases madmax-base..madmax onto the new release and moves the tag. It never pus
 Run from the repo root:
   powershell -ExecutionPolicy Bypass -File sunnypilot\madmax\sync_upstream.ps1
 #>
-param([string]$UpstreamBranch = "release-tizi")
+param([string]$UpstreamBranch = "release-mici")
 
 function Fail($msg) { Write-Host $msg -ForegroundColor Red; exit 1 }
 
